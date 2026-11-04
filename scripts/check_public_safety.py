@@ -58,18 +58,18 @@ def main() -> int:
                 findings.append((str(path.relative_to(ROOT)), label))
     head = subprocess.run(["git", "rev-parse", "--verify", "HEAD"], cwd=ROOT, capture_output=True, text=True)
     if head.returncode == 0:
-        for label, pattern in PATTERNS.items():
-            history = subprocess.run(
-                ["git", "log", "--all", "--format=", "--name-only", "-G" + pattern.pattern],
-                cwd=ROOT,
-                capture_output=True,
-                text=True,
-            )
-            if history.returncode != 0:
-                findings.append((".git", "history scan failed"))
-                break
-            if history.stdout.strip():
-                findings.append((".git", f"potential {label} pattern in history"))
+        history = subprocess.run(
+            ["git", "log", "--all", "--format=", "--no-ext-diff", "--no-color", "-p"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if history.returncode != 0:
+            findings.append((".git", "history scan failed"))
+        else:
+            for label, pattern in PATTERNS.items():
+                if pattern.search(history.stdout):
+                    findings.append((".git", f"potential {label} pattern in history"))
     else:
         print("Git-history scan: SKIP (fresh repository has no commit yet)")
     if findings:

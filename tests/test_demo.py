@@ -38,6 +38,19 @@ class DemoTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("private requests cannot use the cloud provider", result.stdout)
 
+    def test_opt_in_fallback_is_visible(self) -> None:
+        result = self.run_demo(
+            "--provider", "local", "--fallback-policy", "local_to_cloud", "--simulate-local-failure"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("provider=cloud", result.stdout)
+        self.assertIn("fallback_used=true", result.stdout)
+
+    def test_memory_example_is_synthetic_and_cross_session(self) -> None:
+        result = self.run_demo("--memory-example")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("synthetic_cross_session_matches=1", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

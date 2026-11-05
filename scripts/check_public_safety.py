@@ -26,6 +26,12 @@ PATTERNS = {
 }
 
 
+def history_content_for_scan(patch_text: str) -> str:
+    """Drop Git patch metadata that is not repository content before scanning."""
+    metadata = re.compile(r"index [0-9a-fA-F]{7,64}\.\.[0-9a-fA-F]{7,64}(?: [0-7]{6})?")
+    return "\n".join(line for line in patch_text.splitlines() if metadata.fullmatch(line) is None)
+
+
 def main() -> int:
     findings: list[tuple[str, str]] = []
     for path in ROOT.rglob("*"):
@@ -67,8 +73,9 @@ def main() -> int:
         if history.returncode != 0:
             findings.append((".git", "history scan failed"))
         else:
+            history_content = history_content_for_scan(history.stdout)
             for label, pattern in PATTERNS.items():
-                if pattern.search(history.stdout):
+                if pattern.search(history_content):
                     findings.append((".git", f"potential {label} pattern in history"))
     else:
         print("Git-history scan: SKIP (fresh repository has no commit yet)")

@@ -33,6 +33,12 @@ class PublicSafetyPatternTests(unittest.TestCase):
         benign = "Use synthetic credentials from the demo fixture; no real secrets."
         self.assertFalse(any(pattern.search(benign) for pattern in scanner.PATTERNS.values()))
 
+    def test_git_index_metadata_is_not_scanned_as_repository_content(self) -> None:
+        patch_metadata = "index abcdefabcdefab..bcdefabcdefab 100644"
+        real_content = "index example repository documentation"
+        content = scanner.history_content_for_scan(f"{patch_metadata}\n{real_content}")
+        self.assertEqual(content, real_content)
+
 
 if __name__ == "__main__":
     unittest.main()

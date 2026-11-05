@@ -16,11 +16,12 @@ Through implementation and operation, I explored model routing, network boundari
 
 | | Personal Hybrid AI System | This Public Repository |
 |---|---|---|
-| Purpose | Personal assistant and development environment | Small, reproducible routing demonstration |
+| Purpose | Personal assistant and development environment | Reproducible architecture-validation demo |
 | Infrastructure | Lightsail, Mac mini, and private services | Standalone Python project |
 | Models | Local Ollama plus a separate cloud execution path | In-process mock backends only |
-| Routing | Telegram adapter and gateway integrations | Explicit Local/Cloud request contract |
+| Routing | Telegram adapter and gateway integrations | Explicit Local/Cloud request contract with opt-in public-only fallback |
 | Knowledge | Private KnowledgeHub inputs and a restricted snapshot design | No private documents or tracker data |
+| Access and memory | Separate services, storage, and access controls | In-process scoped-token example and local SQLite example |
 | Operations | Separate services, storage, and access controls | No production configuration or network calls |
 
 **This repository is not a copy of the production system.** It is a clean-room demonstration of selected architectural decisions. The diagram and image below distinguish the broader personal system from the much smaller public demo.
@@ -70,11 +71,11 @@ The system uses three different ideas that should not be conflated:
 ## Engineering Decisions and Lessons
 
 - **Make route selection explicit.** A request identifies its intended provider; the public demo rejects private-classified requests before a cloud backend can run.
-- **Avoid silent route changes.** The Gateway's tested default does not automatically send a failed local request to the cloud. Backend failures do not become successful answers from another provider without an explicit policy.
+- **Avoid silent route changes.** The private system's tested default does not automatically send a failed local request to the cloud. The public demo can illustrate an explicitly requested local-to-cloud fallback for public data only; fallback is off by default and private requests cannot select it.
 - **Keep KnowledgeHub output bounded.** The DEV snapshot contract uses an allowlist and freshness/integrity checks. Failure returns unavailable rather than serving an old snapshot. Synthetic tests cover this boundary; production rollout is still blocked.
 - **Treat model capacity as a reliability constraint.** Mac memory and swap measurements informed model selection. A larger-model run was stopped by the existing safety guard after resource limits were exceeded; it was not promoted as a default.
 - **Separate proof from deployment.** Release, credentials, snapshot ACL, and service-start checks are separate gates. A passing mock or DEV test is not described as a production deployment.
-- **Be precise about timeouts.** The Router does not enforce a deadline. If a backend raises a timeout exception, the demo fails closed without fallback.
+- **Be precise about timeouts.** The Router does not enforce a deadline. If a backend raises a timeout exception, it fails closed unless the request explicitly selected the allowed public-data fallback.
 
 ### Implementation Status
 
@@ -82,7 +83,11 @@ The table separates current public code from private-system work. Private-system
 
 | Area | Status | Evidence boundary |
 |---|---|---|
-| Public Local/Cloud router | **Implemented** | This repository contains the explicit request contract, mock backends, fail-closed checks, and unit tests. |
+| Public Local/Cloud router | **Implemented** | This repository contains the explicit request contract, mock backends, private-to-cloud rejection, and unit tests. |
+| Public fallback policy | **Implemented** | Only an explicit `local_to_cloud` policy for a public request can use Cloud after Local fails; default is `never`. |
+| Public authorization example | **Implemented as an in-process example** | A fixed-scope demo token gates inference and memory methods. It is not HTTP authentication, identity management, or a production security boundary. |
+| Public conversation memory example | **Implemented** | SQLite supports parameterized, bounded search with optional session filtering. CLI examples use ephemeral in-memory storage and synthetic records; an optional file must meet local owner/mode checks. |
+| Public observability example | **Implemented** | Structured records contain generated request IDs, route/outcome, and static failure categories. Prompts, tokens, session identifiers, backend exception text, and model output are excluded. |
 | Telegram → Gateway request path | **Implemented / operationally reported** | Adapter and Gateway code and synthetic tests exist. Current live Telegram behavior was not checked in this task. |
 | Mac local model path | **Implemented / DEV verified** | Local Qwen API behavior was exercised with synthetic input in a recorded DEV run. |
 | Conversation context | **Implemented in Adapter; optional** | Stored recent-turn context and its limits are covered by Adapter tests; it is distinct from KnowledgeHub. |
@@ -93,7 +98,7 @@ The table separates current public code from private-system work. Private-system
 
 ## Recorded Validation
 
-- **This public demo:** 13 unit tests passed after this README-only revision. Tests use synthetic prompts and in-process fakes.
+- **This public demo:** 31 unit tests pass after the architecture-validation additions. Tests use synthetic prompts, temporary local SQLite, and in-process fakes; no external model or service is called.
 - **Private DEV history (not part of this repository):** a prior Mac G2/G3 audit recorded 57/57 Mac API/release tests and 168/168 Adapter tests. The Gateway HTTP suite at that point recorded 14 PASS and 21 SKIP; the two real servers were not exercised together in that audit.
 - **Later synthetic integration report:** an LFM candidate run recorded Mac API and Adapter → Gateway → Mac mock/loopback scenarios as passing. Real LFM inference, Telegram delivery, and OPS deployment were skipped.
 
@@ -101,7 +106,25 @@ These private results are historical evidence, not a claim that this public comm
 
 ## Public Router Demo
 
-The public code is a small technical proof of one decision: route requests explicitly, reject private-to-cloud combinations, and fail closed when the selected backend is unavailable or raises an exception. It does **not** implement the Telegram Adapter, Lightsail Gateway, OpenClaw integration, Ollama client, KnowledgeHub, conversation store, or deployment automation.
+The public code is an executable architecture-validation sample, not a recreation of the private service stack. It demonstrates explicit Local/Cloud routing, an opt-in public-only fallback policy, in-process scope checks, local SQLite conversation memory, and structured request-ID audit records. Backends are deterministic mocks. It does **not** implement the Telegram Adapter, Lightsail Gateway, OpenClaw integration, Ollama client, KnowledgeHub pipeline, production authentication, or deployment automation.
+
+### Public Demo Request Flow
+
+```mermaid
+flowchart LR
+  Caller[CLI caller] --> Auth[In-process scope check]
+  Auth -->|infer scope| Router[Explicit request policy]
+  Router -->|local| Local[Local mock]
+  Router -->|cloud + public only| Cloud[Cloud mock]
+  Local -.->|only if request opts in and data is public| Cloud
+  Local --> Result[Generic result or fail-closed error]
+  Cloud --> Result
+  Auth -->|memory scopes| Memory[(SQLite demo memory)]
+  Router -.-> Audit[Request ID and safe outcome log]
+  Memory -.-> Audit
+```
+
+The token is generated inside the CLI process and never printed. This illustrates authorization checks at the application boundary; there is no HTTP server or secure credential transport in this repository. SQLite defaults to `:memory:`. The optional persistent-file mode is a local example with restrictive owner/mode checks, not encrypted storage or a managed memory service. Cross-session search requires a dedicated demo scope.
 
 ### Demo Architecture
 
@@ -118,9 +141,11 @@ python3 -m venv .venv
 . .venv/bin/activate
 PYTHONPATH=src python -m hybrid_ai_portfolio --provider local
 PYTHONPATH=src python -m hybrid_ai_portfolio --provider cloud
+PYTHONPATH=src python -m hybrid_ai_portfolio --provider local --fallback-policy local_to_cloud --simulate-local-failure
+PYTHONPATH=src python -m hybrid_ai_portfolio --memory-example
 ```
 
-The example uses a fixed synthetic prompt and in-process fake backends. To see a private-to-cloud request rejected before a backend is called:
+The fallback example uses synthetic public input and deliberately fails the local mock. To see a private-to-cloud request rejected before a backend is called:
 
 ```sh
 PYTHONPATH=src python -m hybrid_ai_portfolio --provider cloud --classification private
@@ -132,12 +157,12 @@ Run the tests and public-safety scan with:
 ./scripts/ci.sh
 ```
 
-The demo makes no network calls and is not a deployable assistant or production security boundary.
+The demo makes no network calls. All tokens and memory records are process-local synthetic examples; the repository is not a deployable assistant or production security boundary.
 
 ## 프로젝트 요약
 
 이 프로젝트는 Mac mini의 로컬 AI와 AWS Lightsail의 게이트웨이를 결합해 개인용 하이브리드 AI 비서를 구축·운영하며 얻은 라우팅, 데이터 경계, 대화 기억, 검색, 자동화 경험을 정리합니다.
 
-공개 저장소는 전체 운영 시스템이 아니라, 요청별 Local/Cloud 선택과 개인정보 요청 차단, 백엔드 실패 시 fail-closed 동작만 합성 테스트로 재현하는 작은 데모입니다. KnowledgeHub snapshot은 DEV 검증과 운영 준비를 구분하며, OpenClaw의 직접 연결처럼 확인되지 않은 경로는 구현 완료로 표시하지 않습니다.
+공개 저장소는 전체 운영 시스템을 복제하지 않는 실행 가능한 아키텍처 검증 데모입니다. 명시적 Local/Cloud 선택, 공개 데이터에만 허용되는 요청별 fallback, 앱 내부 범위 검사, 로컬 SQLite 대화 기억, 민감 입력을 제외한 요청 ID 로그를 합성 데이터와 Mock으로 재현합니다. HTTP 인증 서버, 실제 Ollama/Telegram/KnowledgeHub 연결은 포함하지 않습니다. KnowledgeHub snapshot은 DEV 검증과 운영 준비를 구분하며, OpenClaw의 직접 연결처럼 확인되지 않은 경로는 구현 완료로 표시하지 않습니다.
 
 See [OWNERSHIP.md](OWNERSHIP.md) for the clean-room and rights boundary. Licensed under the [MIT License](LICENSE).

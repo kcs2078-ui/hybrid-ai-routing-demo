@@ -128,9 +128,35 @@ The token is generated inside the CLI process and never printed. This illustrate
 
 ### Demo Architecture
 
-The existing architecture image describes only this public router demo, not the full personal system above.
+The architecture image depicts the public demo's in-process flow. It is conceptual, not a production deployment diagram: the Local and Cloud backends are mocks, and no HTTP server or external service is included. The implementation map below is authoritative for exact code and test coverage.
 
 ![Public router demo architecture](assets/architecture.png)
+
+#### Image wording and implementation boundaries
+
+The image uses the following wording to describe code-level contracts without implying production integrations:
+
+| Image wording | Implementation and verification | Boundary |
+|---|---|---|
+| `Caller-labeled private data cannot route to Cloud` | [`routing.py`](src/hybrid_ai_portfolio/routing.py); [`test_routing.py`](tests/test_routing.py), [`test_fallback.py`](tests/test_fallback.py) | Checks the caller-supplied data class; it is not a personal-data classifier. |
+| `Backend failures fail closed by default`; `Fallback disabled by default` | [`routing.py`](src/hybrid_ai_portfolio/routing.py); [`test_routing.py`](tests/test_routing.py), [`test_fallback.py`](tests/test_fallback.py) | Explicit fallback is available only to public requests; it is never implicit. |
+| `Local Backend (Mock)`; `Cloud Backend (Mock)` | [`demo.py`](src/hybrid_ai_portfolio/demo.py); [`test_demo.py`](tests/test_demo.py) | Both are deterministic in-process fakes, not Mac, Ollama, or cloud-service connections. |
+| `PortfolioService`; `checks scopes before dispatch` | [`service.py`](src/hybrid_ai_portfolio/service.py), [`security.py`](src/hybrid_ai_portfolio/security.py); [`test_application.py`](tests/test_application.py) | Authorization is in-process application logic, not HTTP authentication. |
+| `Optional SQLite Memory`; `Separate from inference; in-memory by default` | [`memory.py`](src/hybrid_ai_portfolio/memory.py); [`test_memory.py`](tests/test_memory.py), [`test_application.py`](tests/test_application.py) | Memory methods are separate from inference and do not feed stored text to a model. |
+| `Request ID + route, outcome, failure category`; `No prompt, token, session ID, or model output` | [`service.py`](src/hybrid_ai_portfolio/service.py); [`test_application.py`](tests/test_application.py) | Audit records use allowlisted fields and omit request content and credentials. |
+
+### Public Demo Implementation and Test Map
+
+This table maps each diagram-level capability to the code and tests that exercise it. These are local unit/integration tests around in-process objects, not HTTP or production-service tests.
+
+| Component | Implementation | Verification | Verified behavior |
+|---|---|---|---|
+| Local/Cloud routing | [`routing.py`](src/hybrid_ai_portfolio/routing.py) | [`test_routing.py`](tests/test_routing.py) | Explicit provider selection, private-to-Cloud rejection, empty/unavailable backend handling. |
+| Explicit fallback | [`routing.py`](src/hybrid_ai_portfolio/routing.py) | [`test_fallback.py`](tests/test_fallback.py), [`test_demo.py`](tests/test_demo.py) | Default `never`; only a public Local request can opt into Cloud after Local failure. |
+| Authorization and scopes | [`security.py`](src/hybrid_ai_portfolio/security.py), [`service.py`](src/hybrid_ai_portfolio/service.py) | [`test_application.py`](tests/test_application.py) | Missing/invalid token and insufficient scope are denied before inference or memory access. |
+| SQLite conversation memory | [`memory.py`](src/hybrid_ai_portfolio/memory.py) | [`test_memory.py`](tests/test_memory.py), [`test_application.py`](tests/test_application.py) | Parameterized bounded search, session filtering, scoped cross-session search, and local file mode checks. |
+| Request IDs and audit records | [`service.py`](src/hybrid_ai_portfolio/service.py) | [`test_application.py`](tests/test_application.py) | Generated request IDs and route/outcome fields; prompts, tokens, session IDs, output, and backend exception text are excluded. |
+| CLI and mock backends | [`demo.py`](src/hybrid_ai_portfolio/demo.py) | [`test_demo.py`](tests/test_demo.py) | Runnable synthetic examples; no external AI, Telegram, or network calls. |
 
 ## Run the Demo
 
@@ -159,10 +185,8 @@ Run the tests and public-safety scan with:
 
 The demo makes no network calls. All tokens and memory records are process-local synthetic examples; the repository is not a deployable assistant or production security boundary.
 
-## 프로젝트 요약
+## Korean Summary
 
-이 프로젝트는 Mac mini의 로컬 AI와 AWS Lightsail의 게이트웨이를 결합해 개인용 하이브리드 AI 비서를 구축·운영하며 얻은 라우팅, 데이터 경계, 대화 기억, 검색, 자동화 경험을 정리합니다.
-
-공개 저장소는 전체 운영 시스템을 복제하지 않는 실행 가능한 아키텍처 검증 데모입니다. 명시적 Local/Cloud 선택, 공개 데이터에만 허용되는 요청별 fallback, 앱 내부 범위 검사, 로컬 SQLite 대화 기억, 민감 입력을 제외한 요청 ID 로그를 합성 데이터와 Mock으로 재현합니다. HTTP 인증 서버, 실제 Ollama/Telegram/KnowledgeHub 연결은 포함하지 않습니다. KnowledgeHub snapshot은 DEV 검증과 운영 준비를 구분하며, OpenClaw의 직접 연결처럼 확인되지 않은 경로는 구현 완료로 표시하지 않습니다.
+개인 Hybrid AI 비서의 실제 구축·운영 경험에서 얻은 아이디어를 독립적인 공개 데모로 재구현했습니다. 이 저장소는 Mock 기반 Local/Cloud 라우팅, 공개 요청에 한정한 명시적 fallback, 앱 내부 권한 검사, SQLite 예제와 안전한 요청 로그를 보여줍니다. Telegram, Ollama, Gateway, KnowledgeHub 운영 연동이나 실제 시스템 전체를 구현한 저장소는 아닙니다.
 
 See [OWNERSHIP.md](OWNERSHIP.md) for the clean-room and rights boundary. Licensed under the [MIT License](LICENSE).

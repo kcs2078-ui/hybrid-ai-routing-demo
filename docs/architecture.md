@@ -10,7 +10,7 @@ flowchart LR
   P -->|cloud + public only| X[Cloud model interface]
   L --> O[Validated result]
   X --> O
-  P -->|invalid, private-to-cloud, unavailable, timeout, empty result| F[Fail closed]
+  P -->|invalid, private-to-cloud, unavailable, backend timeout exception, empty result| F[Fail closed]
 ```
 
 ## Contracts
@@ -21,6 +21,6 @@ The model interface is a protocol with one operation, `infer(prompt) -> str`. Pr
 
 ## Failure behavior
 
-The router returns a result only from the selected backend. It does not retry on another provider. An unavailable backend, exception, or blank output becomes a generic routing failure that does not include the prompt or backend exception text. Private data cannot be sent to the cloud interface.
+The router does not enforce a timeout or deadline. If the selected backend raises a timeout exception, the router treats it like any other backend exception and returns a generic routing failure; it does not retry on another provider. An unavailable backend, other exception, or blank output also fails closed without exposing the prompt or backend exception text. Private data cannot be sent to the cloud interface.
 
 This is an educational example. It does not provide authentication, process isolation, a secrets manager, a production privacy classifier, or a hardened inference service.

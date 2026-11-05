@@ -55,4 +55,4 @@ CI runs unit tests, bytecode compilation, and the public-safety pattern scan. It
 
 ## Ownership and data boundary
 
-This MVP was authored separately from the operational repositories. It contains no copied production implementation, credentials, private source records, employer documents, operational IPs, or deployment files. See [OWNERSHIP.md](OWNERSHIP.md). The project intentionally has no license file: public redistribution requires an owner-approved license and confirmation that the portfolio material is publishable.
+This is a personally planned and developed clean-room project, produced with AI assistance and no company-owned code or materials. See [OWNERSHIP.md](OWNERSHIP.md) for the author's rights representation and the repository provenance boundary. Licensed under the [MIT License](LICENSE).

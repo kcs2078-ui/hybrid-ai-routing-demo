@@ -1,6 +1,12 @@
+![Hybrid AI Routing Demo](assets/hero.png)
+
 # Hybrid AI Portfolio MVP
 
 A small, clean-room demonstration of request routing between local and cloud model interfaces. It uses only Python's standard library, deterministic mock backends, and synthetic input. It makes no network calls and contains no production configuration.
+
+## Architecture
+
+![System Architecture](assets/architecture.png)
 
 ## What it demonstrates
 
